@@ -1,0 +1,81 @@
+# setting environment
+
+import nltk
+import nltk.corpus
+
+
+# Tokenization
+
+AI = 'Learning NLP is an interesting journey.'
+from nltk.tokenize import word_tokenize
+from nltk.tokenize import blankline_tokenize
+from nltk import bigrams,trigrams,ngrams
+AI_tokens = word_tokenize(AI)
+
+from nltk.probability import FreqDist
+fdist = Freqdist()
+for word in AI_tokens:
+  fdist[word.lower()] += 1
+
+fdist.most_common(10)
+
+AI_token = list(nltk.bigrams(AI))
+AI_token = list(nltk.trigrams(AI))
+AI_token = list(nltk.ngrams(AI,6))
+
+
+# Stemming
+
+from nltk.stem import PorterStemmer
+pst = PorterStemmer()
+
+word_to_stem = ['give','giving','given','gave']
+for word in word_to_stem:
+  print(word + ':' + lst.stem(word))
+ 
+from nltk.stem import SnowballStemmer
+sst = SnowballStemmer('english')
+
+
+# Lemmatization
+
+from nltk.stem import wordnet
+from nltk.stem import WordNetLemmatizer
+word_lem = WordNetLemmatizer()
+
+for words in words_to_stem:
+    print(words+ ':' + word_lem.lemmatize(words))
+    
+    
+# Stop Words
+
+import re
+punctuation = re.compile(r'[.!?\|0-9]')
+
+post_punctuation = []
+for words in words_to_stem:
+    word = punctuation.sub('',words)
+    if len(word)>0:
+        post_punctuation.append(word)
+        
+        
+# Parts of Speech (tag)
+
+sent1 = 'John is eating a delicious cake'
+sent1_tokens = word_tokenize(sent1)
+
+for word in sent1_tokens:
+    print(nltk.pos_tag([word]))
+    
+nltk.pos_tag(sent1_tokens)
+
+
+# Named Entity Recognition
+
+from nltk import ne_chunk
+NE_sent = 'The US president stays in the White House'
+NE_token = word_tokenize(NE_sent)
+NE_tags = nltk.pos_tag(NE_token)
+NE_NER = ne_chunk(NE_tags)
+print(NE_NER)
+

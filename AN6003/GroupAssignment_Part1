@@ -1,0 +1,134 @@
+library(data.table)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(lubridate)
+
+# 1.Read and expore data
+dt = fread('F:\\MSBA\\Analytical Strategy\\online_retail_II.csv', stringsAsFactors = T, na.strings = c('','NA'))
+dim(dt)
+summary(dt)
+glimpse(dt)
+
+# 2.Process data
+# (1).Dealing with missing values
+sum(is.na(dt))
+na_table = apply(dt,2,function(x) sum(is.na(x)))
+dt = na.omit(dt)
+
+# (2).dealing with outliers
+boxplot(dt$Quantity) # identify the ouliers
+dt = dt %>% 
+  filter(Quantity>0)%>%
+  filter(Unit_Price>0)# delete orders whose quantity less than 0
+
+# (3).Adjust columns names and add new columns
+colnames(dt)
+colnames(dt) = c('Invoice_No','Product_Code','Product_Name','Quantity','Invoice_Date','Unit_Price','Customer_ID','Country')
+dt$Invoice_No = as.character(dt$Invoice_No)
+dt$Invoice_Date = as_datetime(dt$Invoice_Date) # Change to datetime class
+dt = dt%>%
+  mutate(Total_price = Unit_Price*Quantity)%>%
+  mutate(Time_Interval = ymd('2011-12-11')-as.Date(dt$Invoice_Date))
+  # Add Total_price and Time_Interval columns
+
+summary(dt)
+glimpse(dt)
+
+
+# 3.General Visualization
+
+# (1).Which product sale the best?
+dt1 = copy(dt)
+dt1$Product_Code
+dt1$Product_Code = as.character(dt1$Product_Code) # Prepare for the substring function
+
+RemoveLetter = function(x){
+  a = substring(x,1,5)
+  return(a)
+}
+
+dt1$Product_Code = lapply(dt1$Product_Code,RemoveStr) # Combine Products which have different colors
+dt1$Product_Code = as.factor(as.character(dt1$Product_Code))
+Product_table = dt1[,.( Order_Amount = length(unique(Invoice_No)), Product_Sales = sum(Total_price)), keyby = Product_Name]%>% arrange(desc(Product_Sales))
+Product_table[1:15,]
+Product_10 = Product_table[1:12,][-c(4,7),] # Remove manual and postage
+Product_10
+
+ggplot(data = Product_10, aes(x = Product_Name, y = Product_Sales),options(scipen=200))+
+  geom_bar(stat = 'identity',fill = 'blue2')+
+  theme(axis.text.x = element_text(angle = 30, hjust = 0.5,vjust = 0.5,color = "black",size=5))
+
+# (2).Which year/month/time sales the best?
+dt2 = copy(dt)
+
+dt2$Year = format(dt$Invoice_Date,'%Y')
+dt2$Month_Year = format(dt$Invoice_Date,"%Y-%m")
+dt2$Hour = format(dt$Invoice_Date,'%H')
+
+year_table = dt2[,.(Order_Amount = length(unique(Invoice_No)), Sales = sum(Total_price)),keyby = Year ]
+month_table = dt2[,.(Order_Amount = length(unique(Invoice_No)), Sales = sum(Total_price)),keyby = Month_Year ]
+hour_table = dt2[,.(Order_Amount = length(unique(Invoice_No)), Sales = sum(Total_price)),keyby = Hour ]
+
+ggplot(data = year_table,aes(x = Year, y = Sales))+
+  geom_bar(stat="identity",aes(fill = Order_Amount),width = 0.6)
+# not very convincing, since the data ended at 2011-12-09
+
+ggplot(data = month_table,aes(x = Month_Year, y = Sales))+
+  geom_bar(stat="identity",aes(fill = Order_Amount))+
+  theme(axis.text.x = element_text(angle = 70, hjust = 0.5,vjust = 0.5,color = "black",size=9))
+# The plot shows seasonality, retailer sales the most in October
+
+ggplot(data = hour_table,aes(x = Hour, y = Sales))+
+  geom_bar(stat="identity",aes(fill = Order_Amount))
+# Cunsumers tend to buy things at 12pm
+
+# (3).Which country sales the best?
+dt3 = copy(dt)
+country_table = dt3[,.(Order_Amount = length(unique(Invoice_No)),
+                       Sales = sum(Total_price), 
+                       Cunsumer_No = length(unique(Customer_ID)),
+                       Consumption_per_person = sum(Total_price)/length(unique(Customer_ID))), 
+                    keyby = Country]%>% arrange(desc(Sales))
+
+country_sale_table = country_table[1:10,]
+country_sale_table
+
+ggplot(data = country_sale_table,aes(x = Country, y = Sales))+
+  geom_bar(stat="identity",aes(fill = Order_Amount))+
+  theme(axis.text.x = element_text(angle = 70, hjust = 0.5,vjust = 0.5,color = "black",size=9))
+# The UK has much bigger transaction volumns than any other countries
+
+country_cpp_table = country_table %>%arrange(desc(Consumption_per_person))
+country_cpp_table = country_cpp_table[1:10,]
+ggplot(data = country_cpp_table,aes(x = Country, y = Consumption_per_person))+
+  geom_bar(stat="identity")+
+  theme(axis.text.x = element_text(angle = 70, hjust = 0.5,vjust = 0.5,color = "black",size=9))
+# The EIRE has the biggest comsumption volumns per person
+
+# 4. Create and explore RFM_table
+RFM_table = dt[,.(Frequency = length(unique(Invoice_No)),Monetary = sum(Total_price),Recency = min(Time_Interval)),keyby = Customer_ID]
+RFM_table$Recency = as.numeric(as.character(RFM_table$Recency))
+summary(RFM_table)
+
+ggplot(data = RFM_table, aes(x = Recency, y = Frequency))+
+  geom_point(stat = 'identity')+
+  labs(title = 'Scatter point for Recency and Frequecy')+
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(data = RFM_table, aes(x = Frequency, y = Monetary))+
+  geom_point(stat = 'identity')+
+  labs(title = 'Scatter point for Frequecy and Monetory')+
+  theme(plot.title = element_text(hjust = 0.5))+
+  geom_smooth(method='lm',se=FALSE,show.legend=TRUE,
+              linetype=1,color='brown',size = 1)
+
+
+cor(RFM_table[,-'Customer_ID'])
+RFM_table
+
+# 5. Model suggestions
+# (1).Clustering model based on RFM_table (such as hierarchical clustering and K-means clustering, new business for EIU)
+# (2).Time series model (Comparing with EIU's old linear model)
+
+                         
